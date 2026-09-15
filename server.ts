@@ -9,11 +9,11 @@ import { Config } from './node_modules/pigallery2-extension-kit/lib/common/confi
 import { LogLevel } from './node_modules/pigallery2-extension-kit/lib/common/config/private/PrivateConfig'
 import { type DirectoryScanSettings } from './node_modules/pigallery2-extension-kit/lib/backend/model/fileaccess/DiskManager'
 import { type CoverPhotoDTOWithID } from './node_modules/pigallery2-extension-kit/lib/backend/model/database/CoverManager'
+import { type SessionContext } from './node_modules/pigallery2-extension-kit/lib/backend/model/SessionContext'
 
 // Importing packages that are available in the main app (listed in the packages.json in pigallery2)
 import { DataSource, type DataSourceOptions, type SelectQueryBuilder, Entity, PrimaryGeneratedColumn, Column, Brackets, ManyToOne, OneToMany, JoinColumn, Relation } from 'typeorm'
-import { SubConfigClass } from 'typeconfig/src/decorators/class/SubConfigClass'
-import { ConfigProperty } from 'typeconfig/src/decorators/property/ConfigPropoerty'
+import { type DigikamGasketConfig } from './config'
 import * as path from 'path'
 import * as util from 'util'
 const forcedDebug = process.env.NODE_ENV === 'debug'
@@ -127,36 +127,6 @@ export class Image {
     manualOrder: number
 }
 
-export type dbTypes = 'MySQL' | 'SQLite'
-
-// Using https://github.com/bpatrik/typeconfig for configuration
-@SubConfigClass({ softReadonly: true })
-export class DigikamGasketConfig {
-  @ConfigProperty({ description: 'DigiKam Directory Category' })
-    digikamShowCollection: string = 'Public'
-
-  @ConfigProperty({ description: 'DigiKam Database Type (MySQL or SQLite)' })
-    digikamDbType: dbTypes = 'MySQL'
-
-  @ConfigProperty({ description: 'DigiKam SQLite DB filename' })
-    digikamSqliteDb: string = '/app/data/digikam/digikam.db'
-
-  @ConfigProperty({ description: 'DigiKam MySQL DB hostname' })
-    digikamMysqlHost: string = 'localhost'
-
-  @ConfigProperty({ description: 'DigiKam MySQL DB port' })
-    digikamMysqlPort: number = 3306
-
-  @ConfigProperty({ description: 'DigiKam MySQL DB name' })
-    digikamMysqlDb: string = 'digikam'
-
-  @ConfigProperty({ description: 'DigiKam MySQL DB username' })
-    digikamMysqlUser: string = 'digikam'
-
-  @ConfigProperty({ description: 'DigiKam MySQL DB password' })
-    digikamMysqlPassword: string = 'password'
-}
-
 /**
  * Set up DigiKam DB connection
  */
@@ -219,9 +189,9 @@ export const init = async (extension: IExtensionObject<DigikamGasketConfig>): Pr
   extensionLog.info(() => `My extension is setting up. name: ${extension.extensionName}, id: ${extension.extensionId}`)
 
   /**
-   * (Optional) Setting the configuration template
+   * The configuration template is no longer set here.
+   * Since pigallery2 3.x it must be exported as `initConfig` from config.js (see config.ts).
    */
-  extension.config.setTemplate(DigikamGasketConfig)
 
   /**
    * Only index directories tagged with the right collection
@@ -285,9 +255,10 @@ export const init = async (extension: IExtensionObject<DigikamGasketConfig>): Pr
    * Select covers specified in DigiKam (if present)
    * */
   extension.events.gallery.CoverManager
-    .getCoverForDirectory.before(async (input: [{ id: number, name: string, path: string }], event): Promise<CoverPhotoDTOWithID | [{ id: number, name: string, path: string }]> => {
+    .getCoverForDirectory.before(async (input: [SessionContext, { id: number, name: string, path: string }], event): Promise<CoverPhotoDTOWithID | [SessionContext, { id: number, name: string, path: string }]> => {
       extensionLog.debug(() => `getCoverForDirectory.before: input = ${util.inspect(input)}`)
-      const inputQuery = input[0]
+      // Since pigallery2 3.x the first argument is the SessionContext, the directory is the second.
+      const inputQuery = input[1]
       const albumPath = (inputQuery.path === './')
         ? path.join(path.sep, inputQuery.name)
         : path.join(path.sep, inputQuery.path, inputQuery.name)

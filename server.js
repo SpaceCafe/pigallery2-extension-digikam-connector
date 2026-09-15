@@ -1,14 +1,12 @@
 "use strict";
 /* eslint-disable @typescript-eslint/no-inferrable-types */
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.cleanUp = exports.init = exports.DigikamGasketConfig = exports.Image = exports.Album = void 0;
+exports.cleanUp = exports.init = exports.Image = exports.Album = void 0;
 const tslib_1 = require("tslib");
 const Config_1 = require("./node_modules/pigallery2-extension-kit/lib/common/config/private/Config");
 const PrivateConfig_1 = require("./node_modules/pigallery2-extension-kit/lib/common/config/private/PrivateConfig");
 // Importing packages that are available in the main app (listed in the packages.json in pigallery2)
 const typeorm_1 = require("typeorm");
-const SubConfigClass_1 = require("typeconfig/src/decorators/class/SubConfigClass");
-const ConfigPropoerty_1 = require("typeconfig/src/decorators/property/ConfigPropoerty");
 const path = require("path");
 const util = require("util");
 const forcedDebug = process.env.NODE_ENV === 'debug';
@@ -61,6 +59,7 @@ const extensionLog = (() => {
 // https://github.com/typeorm/typeorm/blob/master/docs/entities.md#what-is-entity
 let Album = class Album {
 };
+exports.Album = Album;
 tslib_1.__decorate([
     (0, typeorm_1.PrimaryGeneratedColumn)(),
     tslib_1.__metadata("design:type", Number)
@@ -98,12 +97,12 @@ tslib_1.__decorate([
     (0, typeorm_1.OneToMany)(() => Image, (image) => image.album),
     tslib_1.__metadata("design:type", Array)
 ], Album.prototype, "images", void 0);
-Album = tslib_1.__decorate([
+exports.Album = Album = tslib_1.__decorate([
     (0, typeorm_1.Entity)('Albums')
 ], Album);
-exports.Album = Album;
 let Image = class Image {
 };
+exports.Image = Image;
 tslib_1.__decorate([
     (0, typeorm_1.PrimaryGeneratedColumn)(),
     tslib_1.__metadata("design:type", Number)
@@ -141,59 +140,9 @@ tslib_1.__decorate([
     (0, typeorm_1.Column)(),
     tslib_1.__metadata("design:type", Number)
 ], Image.prototype, "manualOrder", void 0);
-Image = tslib_1.__decorate([
+exports.Image = Image = tslib_1.__decorate([
     (0, typeorm_1.Entity)('Images')
 ], Image);
-exports.Image = Image;
-// Using https://github.com/bpatrik/typeconfig for configuration
-let DigikamGasketConfig = class DigikamGasketConfig {
-    constructor() {
-        this.digikamShowCollection = 'Public';
-        this.digikamDbType = 'MySQL';
-        this.digikamSqliteDb = '/app/data/digikam/digikam.db';
-        this.digikamMysqlHost = 'localhost';
-        this.digikamMysqlPort = 3306;
-        this.digikamMysqlDb = 'digikam';
-        this.digikamMysqlUser = 'digikam';
-        this.digikamMysqlPassword = 'password';
-    }
-};
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam Directory Category' }),
-    tslib_1.__metadata("design:type", String)
-], DigikamGasketConfig.prototype, "digikamShowCollection", void 0);
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam Database Type (MySQL or SQLite)' }),
-    tslib_1.__metadata("design:type", String)
-], DigikamGasketConfig.prototype, "digikamDbType", void 0);
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam SQLite DB filename' }),
-    tslib_1.__metadata("design:type", String)
-], DigikamGasketConfig.prototype, "digikamSqliteDb", void 0);
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam MySQL DB hostname' }),
-    tslib_1.__metadata("design:type", String)
-], DigikamGasketConfig.prototype, "digikamMysqlHost", void 0);
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam MySQL DB port' }),
-    tslib_1.__metadata("design:type", Number)
-], DigikamGasketConfig.prototype, "digikamMysqlPort", void 0);
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam MySQL DB name' }),
-    tslib_1.__metadata("design:type", String)
-], DigikamGasketConfig.prototype, "digikamMysqlDb", void 0);
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam MySQL DB username' }),
-    tslib_1.__metadata("design:type", String)
-], DigikamGasketConfig.prototype, "digikamMysqlUser", void 0);
-tslib_1.__decorate([
-    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam MySQL DB password' }),
-    tslib_1.__metadata("design:type", String)
-], DigikamGasketConfig.prototype, "digikamMysqlPassword", void 0);
-DigikamGasketConfig = tslib_1.__decorate([
-    (0, SubConfigClass_1.SubConfigClass)({ softReadonly: true })
-], DigikamGasketConfig);
-exports.DigikamGasketConfig = DigikamGasketConfig;
 /**
  * Set up DigiKam DB connection
  */
@@ -251,9 +200,9 @@ const init = async (extension) => {
     extensionLog.setup(extension);
     extensionLog.info(() => `My extension is setting up. name: ${extension.extensionName}, id: ${extension.extensionId}`);
     /**
-     * (Optional) Setting the configuration template
+     * The configuration template is no longer set here.
+     * Since pigallery2 3.x it must be exported as `initConfig` from config.js (see config.ts).
      */
-    extension.config.setTemplate(DigikamGasketConfig);
     /**
      * Only index directories tagged with the right collection
      */
@@ -314,7 +263,8 @@ const init = async (extension) => {
     extension.events.gallery.CoverManager
         .getCoverForDirectory.before(async (input, event) => {
         extensionLog.debug(() => `getCoverForDirectory.before: input = ${util.inspect(input)}`);
-        const inputQuery = input[0];
+        // Since pigallery2 3.x the first argument is the SessionContext, the directory is the second.
+        const inputQuery = input[1];
         const albumPath = (inputQuery.path === './')
             ? path.join(path.sep, inputQuery.name)
             : path.join(path.sep, inputQuery.path, inputQuery.name);
