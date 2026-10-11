@@ -7,6 +7,9 @@ Pigallery 2 extension to integrate with an existing DigiKam-managed photo collec
 * Supports both SQLite and MySQL DigiKam databases (testing primarily done with MySQL)
 * Pigallery2 only indexes and displays directories with a specific DigiKam category (default 'Public')
 * Pigallery2 uses directory thumbnails selected in DigiKam
+* SQLite: the DB is opened read-only and reopened automatically when the file is replaced
+  (e.g. by `rsync` of a `sqlite3 .backup` copy). Check interval: `digikamSqliteReloadCheckInterval`
+  in seconds (default 2, `0` = off). A wrong path fails instead of silently creating an empty DB.
 * (TODO) Pigallery2 displays directory-level comments added in DigiKam
 
 ## Assumptions

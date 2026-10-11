@@ -21,6 +21,9 @@ export class DigikamGasketConfig {
   @ConfigProperty({ description: 'DigiKam SQLite DB filename' })
     digikamSqliteDb: string = '/app/data/digikam/digikam.db'
 
+  @ConfigProperty({ description: 'DigiKam SQLite: check every N seconds whether the DB file was replaced and reopen it (0 = off)' })
+    digikamSqliteReloadCheckInterval: number = 2
+
   @ConfigProperty({ description: 'DigiKam MySQL DB hostname' })
     digikamMysqlHost: string = 'localhost'
 
