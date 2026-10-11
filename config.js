@@ -11,6 +11,7 @@ let DigikamGasketConfig = class DigikamGasketConfig {
         this.digikamShowCollection = 'Public';
         this.digikamDbType = 'MySQL';
         this.digikamSqliteDb = '/app/data/digikam/digikam.db';
+        this.digikamSqliteReloadCheckInterval = 2;
         this.digikamMysqlHost = 'localhost';
         this.digikamMysqlPort = 3306;
         this.digikamMysqlDb = 'digikam';
@@ -31,6 +32,10 @@ tslib_1.__decorate([
     (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam SQLite DB filename' }),
     tslib_1.__metadata("design:type", String)
 ], DigikamGasketConfig.prototype, "digikamSqliteDb", void 0);
+tslib_1.__decorate([
+    (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam SQLite: check every N seconds whether the DB file was replaced and reopen it (0 = off)' }),
+    tslib_1.__metadata("design:type", Number)
+], DigikamGasketConfig.prototype, "digikamSqliteReloadCheckInterval", void 0);
 tslib_1.__decorate([
     (0, ConfigPropoerty_1.ConfigProperty)({ description: 'DigiKam MySQL DB hostname' }),
     tslib_1.__metadata("design:type", String)

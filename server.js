@@ -7,6 +7,7 @@ const Config_1 = require("./node_modules/pigallery2-extension-kit/lib/common/con
 const PrivateConfig_1 = require("./node_modules/pigallery2-extension-kit/lib/common/config/private/PrivateConfig");
 // Importing packages that are available in the main app (listed in the packages.json in pigallery2)
 const typeorm_1 = require("typeorm");
+const fs = require("fs");
 const path = require("path");
 const util = require("util");
 const forcedDebug = process.env.NODE_ENV === 'debug';
@@ -145,9 +146,68 @@ exports.Image = Image = tslib_1.__decorate([
 ], Image);
 /**
  * Set up DigiKam DB connection
+ *
+ * For SQLite, the database file is typically replaced from outside (e.g. rsync of a
+ * `.backup` copy, which swaps the file atomically via rename). An open better-sqlite3
+ * handle keeps pointing at the old inode, so we watch the file's identity
+ * (inode, size, mtime) and transparently reopen the connection once it changes.
  */
 const digikamDB = (() => {
     let instance = null;
+    let fileSignature = null;
+    let lastCheck = 0;
+    // Old connections are closed after a grace period, so queries still running on them can finish.
+    const OLD_CONNECTION_GRACE_MS = 60 * 1000;
+    const retiring = new Map();
+    const isSqlite = (extension) => extension.config.getConfig().digikamDbType === 'SQLite';
+    const readFileSignature = (file) => {
+        try {
+            const st = fs.statSync(file);
+            return `${st.ino}:${st.size}:${st.mtimeMs}`;
+        }
+        catch (err) {
+            // File temporarily missing or unreadable: keep using the current connection.
+            return null;
+        }
+    };
+    const destroy = async (ds) => {
+        try {
+            const source = await ds;
+            if (source.isInitialized) {
+                await source.destroy();
+            }
+        }
+        catch (err) {
+            extensionLog.warn(() => `DigiKam Connector could not close an old DigiKam DB connection: ${err}`);
+        }
+    };
+    const retire = (ds) => {
+        const timer = setTimeout(() => {
+            retiring.delete(timer);
+            void destroy(ds);
+        }, OLD_CONNECTION_GRACE_MS);
+        timer.unref();
+        retiring.set(timer, ds);
+    };
+    const reloadIfReplaced = (extension) => {
+        const intervalMs = extension.config.getConfig().digikamSqliteReloadCheckInterval * 1000;
+        if (intervalMs <= 0) {
+            return;
+        }
+        const now = Date.now();
+        if (now - lastCheck < intervalMs) {
+            return;
+        }
+        lastCheck = now;
+        const signature = readFileSignature(extension.config.getConfig().digikamSqliteDb);
+        if (signature == null || signature === fileSignature) {
+            return;
+        }
+        extensionLog.info(() => 'DigiKam Connector detected a changed DigiKam SQLite DB, reopening connection');
+        retire(instance);
+        fileSignature = signature;
+        instance = createInstance(extension);
+    };
     const createInstance = async (extension) => {
         const commonOpts = {
             entities: [Album, Image],
@@ -165,7 +225,10 @@ const digikamDB = (() => {
                 };
                 case 'SQLite': return {
                     type: 'better-sqlite3',
-                    database: extension.config.getConfig().digikamSqliteDb
+                    database: extension.config.getConfig().digikamSqliteDb,
+                    // Never write to the DigiKam DB and never create an empty one on a wrong path.
+                    readonly: true,
+                    fileMustExist: true
                 };
                 // FIXME: error out otherwise
             }
@@ -183,16 +246,39 @@ const digikamDB = (() => {
     };
     return {
         getDataSource: async (extension) => {
+            // Everything up to the first await runs synchronously, so concurrent callers
+            // (e.g. the Promise.all in asyncFilter) share one instance and one reload.
             if (instance == null) {
-                instance = await createInstance(extension);
+                if (isSqlite(extension)) {
+                    fileSignature = readFileSignature(extension.config.getConfig().digikamSqliteDb);
+                    lastCheck = Date.now();
+                }
+                instance = createInstance(extension);
             }
-            return instance;
-        },
-        cleanUp: async () => {
-            if (instance != null) {
-                await instance.destroy();
+            else if (isSqlite(extension)) {
+                reloadIfReplaced(extension);
+            }
+            const current = instance;
+            const ds = await current;
+            if (!ds.isInitialized && instance === current) {
+                // Connecting failed (already logged); retry on the next call instead of failing forever.
                 instance = null;
             }
+            return ds;
+        },
+        cleanUp: async () => {
+            const pending = [...retiring.values()];
+            for (const timer of retiring.keys()) {
+                clearTimeout(timer);
+            }
+            retiring.clear();
+            if (instance != null) {
+                pending.push(instance);
+                instance = null;
+            }
+            fileSignature = null;
+            lastCheck = 0;
+            await Promise.all(pending.map(destroy));
         }
     };
 })();
